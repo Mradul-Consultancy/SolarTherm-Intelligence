@@ -1,0 +1,13 @@
+{
+  "name": "solartherm-intelligence",
+  "version": "1.0.0",
+  "description": "M.Tech Solar Thermal Energy Harvesting — Live IoT Dashboard with verified ML and thermodynamic analysis",
+  "scripts": {
+    "test": "node --check app.js && node tests/smoke_test.js",
+    "lint": "node --check app.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  },
+  "license": "MIT"
+}

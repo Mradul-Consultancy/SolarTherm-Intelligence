@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SolarTherm Intelligence — Solar Energy Monitoring &amp; Analytics</title>
+<meta name="description" content="SolarTherm Intelligence: solar thermal monitoring with ML forecasting, anomaly detection, and thermodynamic analytics.">
+<meta name="theme-color" content="#006d77">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%80%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.json">
+
+<!-- Open Graph / social link previews -->
+<meta property="og:title" content="SolarTherm Intelligence">
+<meta property="og:description" content="Real-time solar thermal collector monitoring with verified ML analytics and full thermodynamic analysis (ASHRAE 93 / ISO 9806).">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="SolarTherm Intelligence">
+<meta name="twitter:description" content="Real-time IoT monitoring with verified ML forecasting and thermodynamic analysis.">
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;600;700&display=swap" rel="stylesheet">
+ 
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+ 
+<!-- MODAL -->
+<div class="overlay" id="modal" style="display:none;">
+  <div class="modal">
+    <div class="m-logo">
+      <div class="m-logo-box">P</div>
+      <div class="m-title">Connect Data Source</div>
+    </div>
+    <div class="m-sub">
+      Enter your Firebase Realtime Database config to stream live sensor data.<br>
+      Or click <strong>Demo Mode</strong> to run with simulated data instantly.
+    </div>
+    <div class="field">
+      <label>API Key</label>
+      <input id="f-api" placeholder="AIzaSy...">
+    </div>
+    <div class="field">
+      <label>Auth Domain</label>
+      <input id="f-auth" placeholder="project.firebaseapp.com">
+    </div>
+    <div class="field">
+      <label>Database URL</label>
+      <input id="f-db" placeholder="https://project-rtdb.firebaseio.com">
+    </div>
+    <div class="field">
+      <label>Project ID</label>
+      <input id="f-proj" placeholder="project-id">
+    </div>
+    <div class="db-note">
+      Firebase path: <code>/sensors/T1..T4, F1, F2</code> (numbers) &nbsp;·&nbsp;
+      <code>/controls/power_supply, solenoid_valve, pump, artificial_lamp</code> (bool) &nbsp;·&nbsp;
+      <code>/logs</code> (array)
+    </div>
+    <div class="m-btns">
+      <button class="btn btn-demo" onclick="startDemo()">⚡ Demo Mode</button>
+      <button class="btn btn-pbi" onclick="connectFB()">🔗 Connect Firebase</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROJECT OVERVIEW MODAL -->
+<div class="overlay" id="overviewModal" style="display:none" onclick="if(event.target===this) this.style.display='none'">
+  <div class="modal" style="width:820px;max-width:96vw;max-height:88vh;padding:0;overflow:hidden;display:flex;flex-direction:column;text-align:left">
+    <button class="modal-x" onclick="document.getElementById('overviewModal').style.display='none'">✕</button>
+    <div id="overviewModalBody" style="overflow-y:auto;padding:28px 32px"></div>
+  </div>
+</div>
+ 
+<!-- RIBBON -->
+<div class="ribbon">
+  <div class="ribbon-left">
+    <div class="pbi-logo">P</div>
+    <div>
+      <div class="report-title">SolarTherm Intelligence</div>
+      <div class="report-sub">Solar Thermal Monitoring &amp; Analytics</div>
+    </div>
+  </div>
+  <div class="ribbon-right">
+    <button class="export-btn" onclick="showProjectOverview()" id="overviewBtn" style="background:rgba(0,109,119,.2);border-color:#006d77">
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+      📋 Project Overview
+    </button>
+    <button class="export-btn" onclick="genPDFReport()" id="pdfBtn">
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/></svg>
+      📄 PDF Report
+    </button>
+    <button class="export-btn" onclick="(async()=>{ await loadDemoData(); startDemo(); })()" id="demoDataBtn">
+      📊 Demo Data
+    </button>
+    <button class="export-btn" onclick="downloadDemoCSV()" id="csvBtn">
+      📁 CSV Export
+    </button>
+    <button class="export-btn" onclick="toggleLang()" id="langBtn">🇮🇳 हिंदी</button>
+    <button class="export-btn" onclick="exportSnapshot()">
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M10.5 8.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/>
+        <path d="M2 4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 9.172 2H6.828a2 2 0 0 0-1.414.586l-.828.828A2 2 0 0 1 3.172 4H2zm.5 2a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1zm9 2.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0z"/>
+      </svg>
+      📸 Export PNG
+    </button>
+    <div class="live-pill demo" id="pill">
+      <div class="dot"></div>
+      <span id="pill-txt">DEMO</span>
+    </div>
+    <div class="clock-wrap">
+      <div class="clock-time" id="clk-t">--:--:--</div>
+      <div class="clock-date" id="clk-d">-- --- ----</div>
+    </div>
+  </div>
+</div>
+ 
+<!-- CANVAS -->
+<div class="canvas">
+ 
+  <!-- SENSOR ROW -->
+  <div class="sensor-row">
+
+    <!-- T1 GAUGE -->
+    <div class="gauge-card" style="--accent:var(--t1)">
+      <div class="gauge-top-bar"></div>
+      <div class="gauge-tag">T1</div>
+      <div class="gauge-name">Storage Temperature</div>
+      <div class="gauge-svg-wrap">
+        <svg id="gauge-svg-T1" viewBox="0 0 90 50" width="90" height="50"></svg>
+      </div>
+      <div class="gauge-val-row">
+        <div class="gauge-val" id="v-T1">--.-</div>
+        <div class="gauge-unit">°C</div>
+      </div>
+      <div class="gauge-zone zone-normal" id="zone-T1">NORMAL</div>
+      <div class="gauge-delta d-fl" id="d-T1">—</div>
+    </div>
+
+    <!-- T2 GAUGE -->
+    <div class="gauge-card" style="--accent:var(--t2)">
+      <div class="gauge-top-bar"></div>
+      <div class="gauge-tag">T2</div>
+      <div class="gauge-name">Inlet Temperature</div>
+      <div class="gauge-svg-wrap">
+        <svg id="gauge-svg-T2" viewBox="0 0 90 50" width="90" height="50"></svg>
+      </div>
+      <div class="gauge-val-row">
+        <div class="gauge-val" id="v-T2">--.-</div>
+        <div class="gauge-unit">°C</div>
+      </div>
+      <div class="gauge-zone zone-normal" id="zone-T2">NORMAL</div>
+      <div class="gauge-delta d-fl" id="d-T2">—</div>
+    </div>
+
+    <!-- T3 GAUGE -->
+    <div class="gauge-card" style="--accent:var(--t3)">
+      <div class="gauge-top-bar"></div>
+      <div class="gauge-tag">T3</div>
+      <div class="gauge-name">Absorber Plate</div>
+      <div class="gauge-svg-wrap">
+        <svg id="gauge-svg-T3" viewBox="0 0 90 50" width="90" height="50"></svg>
+      </div>
+      <div class="gauge-val-row">
+        <div class="gauge-val" id="v-T3">--.-</div>
+        <div class="gauge-unit">°C</div>
+      </div>
+      <div class="gauge-zone zone-normal" id="zone-T3">NORMAL</div>
+      <div class="gauge-delta d-fl" id="d-T3">—</div>
+    </div>
+
+    <!-- T4 GAUGE -->
+    <div class="gauge-card" style="--accent:var(--t4)">
+      <div class="gauge-top-bar"></div>
+      <div class="gauge-tag">T4</div>
+      <div class="gauge-name">Outlet Temperature</div>
+      <div class="gauge-svg-wrap">
+        <svg id="gauge-svg-T4" viewBox="0 0 90 50" width="90" height="50"></svg>
+      </div>
+      <div class="gauge-val-row">
+        <div class="gauge-val" id="v-T4">--.-</div>
+        <div class="gauge-unit">°C</div>
+      </div>
+      <div class="gauge-zone zone-normal" id="zone-T4">NORMAL</div>
+      <div class="gauge-delta d-fl" id="d-T4">—</div>
+    </div>
+
+    <!-- F1 — sparkline card -->
+    <div class="s-card" style="--accent:var(--f1)">
+      <div class="s-bar"></div><div class="s-inner">
+        <div class="s-tag">F1</div>
+        <div class="s-name">Inlet Flow Rate</div>
+        <div class="s-val" id="v-F1">-.-</div>
+        <div class="s-unit">L/min</div>
+        <div class="spark-wrap"><svg class="spark-svg" id="spark-F1"></svg></div>
+        <div class="s-delta d-fl" id="d-F1">—</div>
+      </div>
+    </div>
+
+    <!-- F2 — sparkline card -->
+    <div class="s-card" style="--accent:var(--f2)">
+      <div class="s-bar"></div><div class="s-inner">
+        <div class="s-tag">F2</div>
+        <div class="s-name">Outlet Flow Rate</div>
+        <div class="s-val" id="v-F2">-.-</div>
+        <div class="s-unit">L/min</div>
+        <div class="spark-wrap"><svg class="spark-svg" id="spark-F2"></svg></div>
+        <div class="s-delta d-fl" id="d-F2">—</div>
+      </div>
+    </div>
+
+  </div>
+ 
+
+  <!-- KPI BAR -->
+  <div class="kpi-bar">
+    <div class="kpi-card" style="--kpi-col:#e53935">
+      <div class="kpi-label">ΔT Heat Rise (T4 − T1)</div>
+      <div class="kpi-val" id="kpi-dt">--.-</div>
+      <div class="kpi-unit">°C differential</div>
+      <div class="kpi-sub">Collector thermal gain</div>
+    </div>
+    <div class="kpi-card" style="--kpi-col:#ffb340">
+      <div class="kpi-label">Heat Gain Rate</div>
+      <div class="kpi-val" id="kpi-hg">---</div>
+      <div class="kpi-unit">W  (Q = ṁ·Cp·ΔT)</div>
+      <div class="kpi-sub">Cp=4186 J/kg·K</div>
+    </div>
+    <div class="kpi-card" style="--kpi-col:#00e5ff">
+      <div class="kpi-label">Flow Efficiency (F1/F2)</div>
+      <div class="kpi-val" id="kpi-fe">--.-</div>
+      <div class="kpi-unit">%  ratio</div>
+      <div class="kpi-sub">Ideal = 100 %</div>
+    </div>
+  </div>
+
+  <!-- CONTROL COLUMN -->
+  <div class="ctrl-col">
+    <div class="ctrl-sec-title">⬡ Controls</div>
+    <div class="c-card off" id="c-power" style="--state-col:var(--off)">
+      <div class="c-icon">⚡</div>
+      <div class="c-name">Power Supply</div>
+      <div class="c-toggle"></div>
+      <div class="c-status" id="s-power">OFF</div>
+    </div>
+    <div class="c-card off" id="c-sol" style="--state-col:var(--off)">
+      <div class="c-icon">🔧</div>
+      <div class="c-name">Solenoid Valve</div>
+      <div class="c-toggle"></div>
+      <div class="c-status" id="s-sol">OFF</div>
+    </div>
+    <div class="c-card off" id="c-pump" style="--state-col:var(--off)">
+      <!-- Pressure meter: left side, 10px gap -->
+      <div class="pressure-wrap">
+        <div class="pressure-track">
+          <div class="pressure-fill" id="pressureFill"></div>
+        </div>
+        <div class="pressure-pct" id="pressurePct">0%</div>
+      </div>
+      <!-- Pump content -->
+      <div class="pump-inner">
+        <div class="c-icon">💧</div>
+        <div class="c-name">Pump</div>
+        <div class="c-toggle"></div>
+        <div class="c-status" id="s-pump">OFF</div>
+      </div>
+    </div>
+    <div class="c-card off" id="c-lamp" style="--state-col:var(--off)">
+      <div class="c-icon">💡</div>
+      <div class="c-name">Artificial Lamp</div>
+      <div class="c-toggle"></div>
+      <div class="c-status" id="s-lamp">OFF</div>
+    </div>
+  </div>
+ 
+  <!-- CHARTS — 6 individual panels -->
+  <div class="chart-col">
+    <div class="charts-grid">
+
+      <!-- T1 -->
+      <div class="chart-panel-sm">
+        <div class="chart-head-sm" style="border-left:3px solid var(--t1)">
+          <span class="ch-tag" style="color:var(--t1)">T1</span>
+          <span class="ch-name">Storage Temperature</span>
+          <span class="ch-unit">°C</span>
+        </div>
+        <div class="chart-body-sm"><canvas id="ch_T1"></canvas></div>
+      </div>
+
+      <!-- T2 -->
+      <div class="chart-panel-sm">
+        <div class="chart-head-sm" style="border-left:3px solid var(--t2)">
+          <span class="ch-tag" style="color:var(--t2)">T2</span>
+          <span class="ch-name">Inlet Temperature</span>
+          <span class="ch-unit">°C</span>
+        </div>
+        <div class="chart-body-sm"><canvas id="ch_T2"></canvas></div>
+      </div>
+
+      <!-- T3 -->
+      <div class="chart-panel-sm">
+        <div class="chart-head-sm" style="border-left:3px solid var(--t3)">
+          <span class="ch-tag" style="color:var(--t3)">T3</span>
+          <span class="ch-name">Absorber Plate</span>
+          <span class="ch-unit">°C</span>
+        </div>
+        <div class="chart-body-sm"><canvas id="ch_T3"></canvas></div>
+      </div>
+
+      <!-- T4 -->
+      <div class="chart-panel-sm">
+        <div class="chart-head-sm" style="border-left:3px solid var(--t4)">
+          <span class="ch-tag" style="color:var(--t4)">T4</span>
+          <span class="ch-name">Outlet Temperature</span>
+          <span class="ch-unit">°C</span>
+        </div>
+        <div class="chart-body-sm"><canvas id="ch_T4"></canvas></div>
+      </div>
+
+      <!-- F1 -->
+      <div class="chart-panel-sm">
+        <div class="chart-head-sm" style="border-left:3px solid var(--f1)">
+          <span class="ch-tag" style="color:var(--f1)">F1</span>
+          <span class="ch-name">Inlet Flow Rate</span>
+          <span class="ch-unit">L/min</span>
+        </div>
+        <div class="chart-body-sm"><canvas id="ch_F1"></canvas></div>
+      </div>
+
+      <!-- F2 -->
+      <div class="chart-panel-sm">
+        <div class="chart-head-sm" style="border-left:3px solid var(--f2)">
+          <span class="ch-tag" style="color:var(--f2)">F2</span>
+          <span class="ch-name">Outlet Flow Rate</span>
+          <span class="ch-unit">L/min</span>
+        </div>
+        <div class="chart-body-sm"><canvas id="ch_F2"></canvas></div>
+      </div>
+
+    </div>
+  </div>
+ 
+  <!-- LOG -->
+  <div class="log-panel">
+    <div class="log-head">
+      <div class="log-ttl">Previous Data Log</div>
+      <div class="log-cnt" id="log-cnt">0 records</div>
+    </div>
+    <div class="log-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th style="color:var(--t1)">T1 °C</th>
+            <th style="color:var(--t2)">T2 °C</th>
+            <th style="color:var(--t3)">T3 °C</th>
+            <th style="color:var(--t4)">T4 °C</th>
+            <th style="color:var(--f1)">F1 L/m</th>
+            <th style="color:var(--f2)">F2 L/m</th>
+            <th style="color:var(--on)">Power</th>
+            <th style="color:var(--on)">Solenoid</th>
+            <th style="color:var(--on)">Pump</th>
+            <th style="color:var(--on)">Lamp</th>
+          </tr>
+        </thead>
+        <tbody id="log-body">
+          <tr><td colspan="11" style="text-align:center;color:#555;padding:16px">Waiting for data…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+ 
+
+  <!-- HEATMAP TIMELINE -->
+  <div class="heatmap-panel">
+    <div class="heatmap-title">
+      🌡 Temperature Intensity Heatmap — by Hour
+      <span style="font-size:9px;font-weight:400;color:var(--pbi-dgrey)">(today · T1–T4)</span>
+    </div>
+    <div class="hm-grid" id="hmGrid"></div>
+    <div class="hm-legend">
+      <span class="hm-legend-label">Cool</span>
+      <div class="hm-legend-grad" id="hmLegend"></div>
+      <span class="hm-legend-label">Hot</span>
+    </div>
+  </div>
+
+
+  <!-- ══ ML INTELLIGENCE SECTION ══ -->
+  <div class="ml-section">
+
+    <!-- Header + tabs -->
+    <div class="ml-header">
+      <div class="ml-header-left">
+        <span class="ml-badge">🤖 ML</span>
+        <div>
+          <div class="ml-title">Machine Learning Intelligence Layer</div>
+          <div class="ml-status" id="mlStatus">Initialising models…</div>
+        </div>
+      </div>
+      <div class="ml-tabs">
+        <div class="ml-tab active" onclick="showML('lstm')">📈 Forecast</div>
+        <div class="ml-tab" onclick="showML('anomaly')">🚨 Anomaly</div>
+        <div class="ml-tab" onclick="showML('efficiency')">⚡ Efficiency</div>
+        <div class="ml-tab" onclick="showML('rl')">🎮 RL Agent</div>
+        <div class="ml-tab" onclick="showML('irr')">☀ Irradiance</div>
+        <div class="ml-tab" onclick="showML('nlp')">💬 Ask AI</div>
+      </div>
+    </div>
+
+    <!-- ML panels grid -->
+    <div class="ml-panels">
+
+      <!-- LSTM FORECAST -->
+      <div class="ml-panel visible" id="mlp-lstm">
+        <div class="ml-panel-title">📈 LSTM Temperature Forecast (next 10 min)</div>
+        <div class="ml-row"><span class="ml-key">Model</span><span class="ml-val blue" id="lstmModel">LSTM(8) → Dense(2)</span></div>
+        <div class="ml-row"><span class="ml-key">Training pts</span><span class="ml-val" id="lstmPts">0</span></div>
+        <div class="ml-row"><span class="ml-key">RMSE</span><span class="ml-val good" id="lstmRMSE">—</span></div>
+        <div class="ml-row"><span class="ml-key">T1 predicted</span><span class="ml-val blue" id="lstmT1pred">—</span></div>
+        <div class="ml-row"><span class="ml-key">T3 predicted</span><span class="ml-val blue" id="lstmT3pred">—</span></div>
+        <div class="train-bar-wrap"><div class="train-bar-track"><div class="train-bar-fill" id="lstmTrainBar"></div></div><div class="train-label" id="lstmTrainLabel">Collecting data…</div></div>
+        <div class="forecast-wrap"><canvas id="forecastCanvas" class="forecast-canvas"></canvas></div>
+      </div>
+
+      <!-- ANOMALY DETECTION -->
+      <div class="ml-panel" id="mlp-anomaly">
+        <div class="ml-panel-title">🚨 Autoencoder Anomaly Detection</div>
+        <div class="ml-row"><span class="ml-key">Model</span><span class="ml-val blue">Autoencoder (1-class)</span></div>
+        <div class="ml-row"><span class="ml-key">Baseline window</span><span class="ml-val" id="anomBaseline">0 pts</span></div>
+        <div class="ml-row"><span class="ml-key">Recon. error</span><span class="ml-val" id="anomError">—</span></div>
+        <div class="ml-row"><span class="ml-key">Threshold (2σ)</span><span class="ml-val" id="anomThresh">—</span></div>
+        <div class="ml-row"><span class="ml-key">Status</span><span class="ml-val good" id="anomStatus">LEARNING</span></div>
+        <div class="anomaly-log" id="anomLog">
+          <div class="anom-row"><span class="anom-pill ok">OK</span><span class="anom-msg">Baseline training…</span></div>
+        </div>
+      </div>
+
+      <!-- COLLECTOR EFFICIENCY REGRESSION -->
+      <div class="ml-panel" id="mlp-efficiency">
+        <div class="ml-panel-title">⚡ Efficiency Model (Online RLS Regression)</div>
+        <div class="ml-row"><span class="ml-key">Model</span><span class="ml-val blue">Poly. Regression</span></div>
+        <div class="ml-row"><span class="ml-key">η ML predicted</span><span class="ml-val good" id="effML">—</span></div>
+        <div class="ml-row"><span class="ml-key">η Formula</span><span class="ml-val blue" id="effFormula">—</span></div>
+        <div class="ml-row"><span class="ml-key">ML − Formula gap</span><span class="ml-val warn" id="effGap">—</span></div>
+        <div class="ml-row"><span class="ml-key">Top feature</span><span class="ml-val" id="effFeat">ΔT (0.48)</span></div>
+        <div class="ml-row"><span class="ml-key">R² score</span><span class="ml-val good" id="effR2">—</span></div>
+        <div class="train-bar-wrap"><div class="train-bar-track"><div class="train-bar-fill" id="effTrainBar"></div></div><div class="train-label" id="effTrainLabel">Building training set…</div></div>
+      </div>
+
+      <!-- RL PUMP AGENT -->
+      <div class="ml-panel" id="mlp-rl">
+        <div class="ml-panel-title">🎮 Q-Learning Pump Scheduler</div>
+        <div class="ml-row"><span class="ml-key">Algorithm</span><span class="ml-val blue">Q-Learning (ε-greedy)</span></div>
+        <div class="ml-row"><span class="ml-key">Episodes</span><span class="ml-val" id="rlEpisodes">0</span></div>
+        <div class="ml-row"><span class="ml-key">ε (exploration)</span><span class="ml-val" id="rlEpsilon">1.00</span></div>
+        <div class="ml-row"><span class="ml-key">Cumulative reward</span><span class="ml-val good" id="rlReward">0</span></div>
+        <div class="rl-state">
+          <div class="rl-cell"><div class="rl-cell-label">State ΔT</div><div class="rl-cell-val" id="rlDT" style="color:#ffb340">—</div></div>
+          <div class="rl-cell"><div class="rl-cell-label">State F1</div><div class="rl-cell-val" id="rlF1" style="color:#a78bfa">—</div></div>
+        </div>
+        <div class="rl-action off-rec" id="rlAction">⏸ Agent learning…</div>
+      </div>
+
+      <!-- IRRADIANCE ESTIMATION -->
+      <div class="ml-panel" id="mlp-irr">
+        <div class="ml-panel-title">☀ Solar Irradiance Estimation (Sensor-less)</div>
+        <div class="ml-row"><span class="ml-key">Method</span><span class="ml-val blue">dT3/dt regression</span></div>
+        <div class="ml-row"><span class="ml-key">Est. G (W/m²)</span><span class="ml-val good" id="irrG">—</span></div>
+        <div class="ml-row"><span class="ml-key">dT3/dt</span><span class="ml-val" id="irrDT">—</span></div>
+        <div class="ml-row"><span class="ml-key">Solar noon in</span><span class="ml-val blue" id="irrNoon">—</span></div>
+        <div class="ml-row"><span class="ml-key">Peak hour est.</span><span class="ml-val" id="irrPeak">12:00–13:00</span></div>
+        <div class="irr-gauge-wrap">
+          <div class="irr-bar-track"><div class="irr-bar-fill" id="irrBar" style="width:0%"></div></div>
+          <div class="irr-labels"><span>0</span><span>500</span><span>1000 W/m²</span></div>
+        </div>
+        <div class="ml-row" style="margin-top:4px"><span class="ml-key">Reynolds No.</span><span class="ml-val blue" id="irrRe">—</span></div>
+        <div class="ml-row"><span class="ml-key">Flow regime</span><span class="ml-val" id="irrRegime">—</span></div>
+      </div>
+
+      <!-- NLP ASK AI -->
+      <div class="ml-panel" id="mlp-nlp">
+        <div class="ml-panel-title">💬 Natural Language Query (RAG + Claude API)</div>
+        <div class="nlp-box">
+          <div class="nlp-messages" id="nlpMessages">
+            <div class="nlp-msg ai">👋 Ask me anything about your solar data. Example: <em>"Is the system efficient right now?"</em> or <em>"What is the Reynolds number?"</em><br><span style="color:#555;font-size:9px">Connects to real Claude via a secure proxy — see cloudflare_worker.js to enable. Falls back to offline answers until configured.</span></div>
+          </div>
+          <div class="nlp-input-row">
+            <input class="nlp-input" id="nlpInput" placeholder="Ask about your solar system…" onkeydown="if(event.key==='Enter')sendNLP()">
+            <button class="nlp-send" onclick="sendNLP()">Ask →</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- ml-panels -->
+  </div><!-- ml-section -->
+
+  <!-- ══ SCIENCE PANELS ROW ══ -->
+  <div class="sci-section">
+
+    <!-- ASHRAE Efficiency Curve -->
+    <div class="sci-panel">
+      <div class="sci-hd">
+        <span class="sci-icon">📐</span>
+        <div>
+          <div class="sci-title" data-en="ASHRAE 93 Efficiency Curve" data-hi="ASHRAE 93 दक्षता वक्र">ASHRAE 93 Efficiency Curve</div>
+          <div class="sci-sub">η vs (Ti−Ta)/G — ISO 9806 Standard</div>
+        </div>
+      </div>
+      <div class="sci-body" style="height:120px;position:relative"><canvas id="ashraeCanvas"></canvas></div>
+      <div class="sci-row"><span class="sci-k">η₀ (optical eff.)</span><span class="sci-v good" id="eta0">—</span></div>
+      <div class="sci-row"><span class="sci-k">k₁ slope</span><span class="sci-v blue" id="k1val">—</span></div>
+      <div class="sci-row"><span class="sci-k">Stagnation T</span><span class="sci-v warn" id="stagT">—</span></div>
+    </div>
+
+    <!-- 2nd Law Entropy -->
+    <div class="sci-panel">
+      <div class="sci-hd">
+        <span class="sci-icon">♻</span>
+        <div>
+          <div class="sci-title" data-en="2nd Law — Entropy Analysis" data-hi="द्वितीय नियम — एन्ट्रॉपी">2nd Law — Entropy Analysis</div>
+          <div class="sci-sub">Exergy &amp; Irreversibility</div>
+        </div>
+      </div>
+      <div class="sci-row"><span class="sci-k">S_gen (W/K)</span><span class="sci-v bad" id="sgen">—</span></div>
+      <div class="sci-row"><span class="sci-k">Exergy input</span><span class="sci-v" id="exIn">—</span></div>
+      <div class="sci-row"><span class="sci-k">Exergy output</span><span class="sci-v good" id="exOut">—</span></div>
+      <div class="sci-row"><span class="sci-k">2nd Law η</span><span class="sci-v good" id="eta2nd">—</span></div>
+      <div class="sci-row"><span class="sci-k">Irreversibility</span><span class="sci-v warn" id="irrevers">—</span></div>
+      <div class="sci-row"><span class="sci-k">T_sun (K)</span><span class="sci-v blue">5778</span></div>
+    </div>
+
+    <!-- Nusselt / Heat Transfer -->
+    <div class="sci-panel">
+      <div class="sci-hd">
+        <span class="sci-icon">🌊</span>
+        <div>
+          <div class="sci-title" data-en="Heat Transfer Analysis" data-hi="ऊष्मा स्थानांतरण">Heat Transfer Analysis</div>
+          <div class="sci-sub">Nu, h, Dittus-Boelter</div>
+        </div>
+      </div>
+      <div class="sci-row"><span class="sci-k">Re</span><span class="sci-v blue" id="htRe">—</span></div>
+      <div class="sci-row"><span class="sci-k">Pr (water 40°C)</span><span class="sci-v">4.34</span></div>
+      <div class="sci-row"><span class="sci-k">Nu (Dittus-Boelter)</span><span class="sci-v blue" id="htNu">—</span></div>
+      <div class="sci-row"><span class="sci-k">h (W/m²K)</span><span class="sci-v good" id="htH">—</span></div>
+      <div class="sci-row"><span class="sci-k">UA (W/K)</span><span class="sci-v" id="htUA">—</span></div>
+      <div class="sci-row"><span class="sci-k">NTU</span><span class="sci-v blue" id="htNTU">—</span></div>
+    </div>
+
+    <!-- OTA Firmware Panel -->
+    <div class="sci-panel">
+      <div class="sci-hd">
+        <span class="sci-icon">📡</span>
+        <div>
+          <div class="sci-title" data-en="Device OTA Monitor" data-hi="डिवाइस OTA मॉनिटर">Device OTA Monitor</div>
+          <div class="sci-sub">ESP32 Firmware Status</div>
+        </div>
+      </div>
+      <div class="sci-row"><span class="sci-k">Firmware ver.</span><span class="sci-v blue" id="otaFW">v2.1.4</span></div>
+      <div class="sci-row"><span class="sci-k">Uptime</span><span class="sci-v good" id="otaUptime">—</span></div>
+      <div class="sci-row"><span class="sci-k">Wi-Fi RSSI</span><span class="sci-v" id="otaRSSI">-68 dBm</span></div>
+      <div class="sci-row"><span class="sci-k">Free heap</span><span class="sci-v good" id="otaHeap">184 KB</span></div>
+      <div class="sci-row"><span class="sci-k">Sampling rate</span><span class="sci-v">5 s</span></div>
+      <div class="sci-row"><span class="sci-k">Node status</span><span class="sci-v good" id="otaStatus">● ONLINE</span></div>
+    </div>
+
+  </div><!-- sci-section -->
+
+  <!-- ══ CORRELATION + NETWORK ROW ══ -->
+  <div class="sci-section" style="grid-template-columns:1fr 1fr">
+
+    <!-- Correlation Matrix -->
+    <div class="sci-panel" style="grid-column:1">
+      <div class="sci-hd">
+        <span class="sci-icon">🔗</span>
+        <div>
+          <div class="sci-title" data-en="Pearson Correlation Matrix" data-hi="पियर्सन सहसंबंध मैट्रिक्स">Pearson Correlation Matrix</div>
+          <div class="sci-sub">T1↔T2↔T3↔T4↔F1↔F2</div>
+        </div>
+      </div>
+      <div id="corrMatrix" style="margin-top:6px;overflow:auto"></div>
+    </div>
+
+    <!-- Network Topology -->
+    <div class="sci-panel" style="grid-column:2">
+      <div class="sci-hd">
+        <span class="sci-icon">🗺</span>
+        <div>
+          <div class="sci-title" data-en="Sensor Network Map" data-hi="सेंसर नेटवर्क मानचित्र">Sensor Network Map</div>
+          <div class="sci-sub">Node topology &amp; signal</div>
+        </div>
+      </div>
+      <svg id="networkSVG" viewBox="0 0 340 155" style="width:100%;margin-top:6px"></svg>
+    </div>
+
+  </div>
+
+  <!-- ══ STALE DATA / RECONNECT INDICATOR ══ -->
+  <div class="alert-bar" id="staleBar" style="display:none">
+    <div class="alert-bar-inner" style="background:linear-gradient(135deg,rgba(255,179,64,.15),rgba(255,179,64,.05));border-color:rgba(255,179,64,.4)">
+      <span class="alert-bar-icon">📡</span>
+      <span class="alert-bar-msg" id="staleMsg" style="color:#ffb340">Checking connection…</span>
+    </div>
+  </div>
+
+  <!-- ══ ALERT SYSTEM (bottom bar) ══ -->
+  <div class="alert-bar" id="alertBar" style="display:none">
+    <div class="alert-bar-inner">
+      <span class="alert-bar-icon">🚨</span>
+      <span class="alert-bar-msg" id="alertMsg">Alert</span>
+      <button class="alert-dismiss" onclick="document.getElementById('alertBar').style.display='none'">✕</button>
+    </div>
+  </div>
+
+
+</div><!-- .canvas -->
+ 
+
+<div class="pwa-banner" id="pwaBanner">
+  <div class="pwa-txt">📱 Install Solar Dashboard as an app</div>
+  <button class="pwa-install-btn" onclick="installPWA()">Install</button>
+  <button class="pwa-dismiss" onclick="document.getElementById('pwaBanner').classList.remove('show')">✕</button>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

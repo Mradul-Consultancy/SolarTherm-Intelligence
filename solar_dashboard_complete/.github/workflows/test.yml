@@ -1,0 +1,33 @@
+name: Dashboard Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install test dependencies
+        run: npm install
+
+      - name: Check JavaScript syntax
+        run: node --check app.js
+
+      - name: Run smoke test suite
+        run: node tests/smoke_test.js
+
+      - name: Report status
+        if: success()
+        run: echo "✅ Dashboard passed all automated checks"

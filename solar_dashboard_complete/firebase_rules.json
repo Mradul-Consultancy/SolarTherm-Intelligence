@@ -1,0 +1,15 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": false,
+
+    "logs": {
+      ".indexOn": [".value"]
+    },
+
+    "device": {
+      ".read": "auth != null",
+      ".write": false
+    }
+  }
+}
